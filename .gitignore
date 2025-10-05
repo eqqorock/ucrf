@@ -1,0 +1,8 @@
+venv/
+.venv/
+__pycache__/
+node_modules/
+.DS_Store
+*.pyc
+ucrf.db
+models/*.joblib
