@@ -6,10 +6,20 @@ from pydantic import BaseModel
 from typing import List
 import joblib
 import os
+from fastapi.middleware.cors import CORSMiddleware
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="UCRF - Vehicle Reliability Forecast")
+
+# CORS: allow Vercel frontend origin (replace with your actual Vercel domain or use ['*'] for testing)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.environ.get("VITE_APP_ORIGIN") or "https://ucrf-7pxrceacn-eqqorocks-projects.vercel.app"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class VehicleCreate(BaseModel):

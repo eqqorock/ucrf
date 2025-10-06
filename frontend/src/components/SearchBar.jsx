@@ -1,6 +1,9 @@
 import React, {useState} from 'react'
 import axios from 'axios'
 
+// read Vite env var (Vite inlines VITE_ variables at build time)
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 export default function SearchBar(){
   const [make,setMake] = useState('')
   const [model,setModel] = useState('')
@@ -12,10 +15,11 @@ export default function SearchBar(){
     e.preventDefault()
     setLoading(true)
     try{
-      const res = await axios.post('http://localhost:8000/predict', null, { params: { make, model_name: model, year: Number(year), mileage: 0 } })
+      const res = await axios.post(`${API}/predict`, null, { params: { make, model_name: model, year: Number(year), mileage: 0 } })
       setResult(res.data)
     }catch(err){
-      setResult({ error: err.message })
+      // normalize network/cors errors
+      setResult({ error: err.message || 'Network Error' })
     }finally{ setLoading(false) }
   }
 
