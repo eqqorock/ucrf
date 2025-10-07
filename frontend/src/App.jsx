@@ -1,8 +1,11 @@
 import React from 'react'
+import React, { useState } from 'react'
 import SearchBar from './components/SearchBar'
 import ResultCard from './components/ResultCard'
 
 export default function App(){
+  const [result, setResult] = useState(null)
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
@@ -11,9 +14,9 @@ export default function App(){
         </div>
       </header>
       <main className="max-w-4xl mx-auto p-6">
-        <SearchBar />
+        <SearchBar onResult={setResult} />
         <div className="mt-6">
-          <ResultCard />
+          <ResultCard data={result} />
         </div>
       </main>
     </div>
