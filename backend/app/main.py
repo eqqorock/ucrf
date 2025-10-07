@@ -11,6 +11,7 @@ from fastapi import Request
 import re
 import numpy as np
 import pandas as pd
+import json
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -215,3 +216,21 @@ def health():
         "clf_n_features": getattr(_clf, "n_features_in_", None),
         "clf_feature_names": clf_features,
     }
+
+
+    @app.get("/problem-catalog", response_model=dict)
+    def problem_catalog():
+        """Return the problem catalog JSON file. This keeps the frontend in sync with the backend's taxonomy.
+
+        Falls back to a simple structure if the file cannot be read.
+
+        """
+        data_path = os.path.join(os.path.dirname(__file__), "..", "data", "problem_catalog.json")
+        try:
+            with open(data_path, "r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Problem catalog not found")
+        except Exception as e:
+            logger.exception("Failed to read problem catalog: %s", e)
+            raise HTTPException(status_code=500, detail="Failed to load catalog")

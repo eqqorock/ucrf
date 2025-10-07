@@ -1,4 +1,4 @@
-import React, {useState, useMemo} from 'react'
+import React, {useState, useMemo, useEffect} from 'react'
 import axios from 'axios'
 
 // read Vite env var (Vite inlines VITE_ variables at build time)
@@ -6,35 +6,17 @@ let API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 // normalize (remove trailing slash)
 if (API.endsWith('/')) API = API.slice(0, -1)
 
-// Dummy makers and models: 5 per region with 15 models each (toy data)
-const MODELS_BY_MAKE = {
-  // Japanese
-  'Honda': ['Accord','Civic','CR-V','Element','Fit','HR-V','Insight','Jazz','N-One','Pilot','Prelude','Ridgeline','S2000','Stepwgn','Vezel'],
-  'Mazda': ['3','6','CX-3','CX-30','CX-5','CX-9','MX-5','RX-7','RX-8','Biante','Atenza','Capella','Demio','MPV','Premacy'],
-  'Nissan': ['300ZX','Altima','Armada','Cube','Frontier','Juke','Kicks','Leaf','Maxima','Murano','Pathfinder','Patrol','Rogue','Sentra','Xterra'],
-  'Subaru': ['BRZ','Crosstrek','Forester','Impreza','Justy','Legacy','Levorg','Outback','Pleo','STI','Tribeca','WRX','Baja','Alcyone','R2'],
-  'Toyota': ['86','Alphard','Aurion','Avalon','Camry','Corolla','Crown','Estima','FJ Cruiser','Hilux','Land Cruiser','Prius','RAV4','Sequoia','Yaris'],
-  // Korean
-  'Genesis': ['G70','G80','G90','GV60','GV70','GV80','XG','Coupé','Equus','KM240','Newport','Rexton','Rodeo','Stellar','Tivoli'],
-  'Hyundai': ['Accent','Azera','Elantra','Encore','Equus','Genesis','Ioniq','Kona','Palisade','Santa Fe','Santa Cruz','Sonata','Staria','Tucson','Veloster'],
-  'Kia': ['Cadenza','Carnival','Forte','K900','KX3','KX5','Link','Niro','Optima','Picanto','Quoris','Rio','Sedona','Sorento','Sportage'],
-  'Daewoo': ['Lacetti','Korando','Matiz','Leganza','Nubira','Musso','Espero','Tico','Prince','Lanos','Veritas','Racer','Tornado','Kruse','Monza'],
-  'SsangYong': ['Actyon','Chairman','Korando','Khan','Kyron','Musso','Rexton','Rodius','Tivoli','Turino','Korando Sports','Rexton W','Korando C','Actyon Sports','Korando Turismo'],
-  // American
-  'Ford': ['Bronco','Edge','Escape','Expedition','Explorer','F-150','F-250','Fiesta','Flex','Focus','Mustang','Ranger','Taurus','Transit','Thunderbird'],
-  'Chevrolet': ['Avalanche','Bolt','Camaro','Caprice','Chevelle','Corvette','Cruze','Equinox','Impala','Malibu','Monte Carlo','Silverado','Sonic','Spark','Suburban'],
-  'Dodge': ['Avenger','Challenger','Charger','Dakota','Daytona','Durango','Magnum','Neon','Nitro','Polara','Ram','Stratus','Viper','Journey','Caliber'],
-  'Tesla': ['Model S','Model 3','Model X','Model Y','Roadster','Cybertruck','Semi','Roadster 2020','Tesla Two','E-Model','Alpha','Beta','Gamma','Delta','Omega'],
-  'Cadillac': ['ATS','Brougham','CTS','DeVille','CT4','CT5','Eldorado','Escalade','Fleetwood','Seville','SRX','STS','XLR','XT4','XT5'],
-  // German
-  'BMW': ['1 Series','2 Series','3 Series','4 Series','5 Series','6 Series','7 Series','8 Series','i3','i8','M2','M3','M4','X1','X3'],
-  'Mercedes-Benz': ['A-Class','B-Class','C-Class','CLA','CLS','E-Class','G-Class','GLA','GLC','GLE','S-Class','SL','SLC','Sprinter','Vito'],
-  'Audi': ['A1','A3','A4','A5','A6','A7','A8','Q2','Q3','Q5','Q7','R8','RS3','RS5','TT'],
-  'Porsche': ['911','Boxster','Cayenne','Cayman','Macan','Panamera','Taycan','924','944','968','928','356','914','718','Carrera GT'],
-  'Volkswagen': ['Beetle','Golf','Jetta','Passat','Polo','Tiguan','Touareg','Arteon','Atlas','CC','Scirocco','Vanagon','K70','Karmann','Golf R']
+// Small local fallback mapping used if the backend catalog cannot be reached.
+const LOCAL_MODELS_BY_MAKE = {
+  'Honda': ['Civic', 'Accord', 'CR-V'],
+  'Toyota': ['Corolla', 'Camry', 'RAV4'],
+  'Ford': ['F-150', 'Focus', 'Explorer'],
+  'BMW': ['3 Series', '5 Series', 'X3'],
+  'Hyundai': ['Elantra', 'Santa Fe', 'Tucson'],
+  'Volkswagen': ['Golf', 'Passat', 'Tiguan']
 }
 
-const DEFAULT_MAKES = Object.keys(MODELS_BY_MAKE).sort()
+const DEFAULT_MAKES = Object.keys(LOCAL_MODELS_BY_MAKE).sort()
 
 export default function SearchBar({ onResult }){
   const now = new Date().getFullYear()
@@ -44,15 +26,18 @@ export default function SearchBar({ onResult }){
     return arr.reverse()
   },[])
 
-  const [make,setMake] = useState(DEFAULT_MAKES[0])
-  const [model,setModel] = useState((MODELS_BY_MAKE[DEFAULT_MAKES[0]]||[])[0])
+  const [make,setMake] = useState(DEFAULT_MAKES[0] || '')
+  const [model,setModel] = useState((LOCAL_MODELS_BY_MAKE[DEFAULT_MAKES[0]]||[])[0] || '')
+  const [modelsByMake, setModelsByMake] = useState(LOCAL_MODELS_BY_MAKE)
+  const [makers, setMakers] = useState(DEFAULT_MAKES)
+  const [catalogLoaded, setCatalogLoaded] = useState(false)
   const [year,setYear] = useState(String(years[0]))
   const [loading,setLoading] = useState(false)
   const [result,setResult] = useState(null)
 
   const onMakeChange = (v) => {
     setMake(v)
-    const m = MODELS_BY_MAKE[v] || []
+    const m = modelsByMake[v] || []
     setModel((m||[])[0] || '')
   }
 
@@ -70,15 +55,44 @@ export default function SearchBar({ onResult }){
     }finally{ setLoading(false) }
   }
 
+  // Try to fetch the problem catalog from the backend and extract makers.
+  useEffect(()=>{
+    let mounted = true
+    const fetchCatalog = async ()=>{
+      try{
+        const res = await axios.get(`${API}/problem-catalog`)
+        if (!mounted) return
+        const data = res.data || {}
+        // Build a simple mapping: makers -> small model lists (fallback to local models if not available)
+        const catMakers = (data.makers && Array.isArray(data.makers)) ? data.makers : Object.keys(LOCAL_MODELS_BY_MAKE)
+        const mapping = {}
+        for(const m of catMakers){
+          // prefer local short lists if available, otherwise use a placeholder model list
+          mapping[m] = LOCAL_MODELS_BY_MAKE[m] || ["Model A", "Model B", "Model C"]
+        }
+        setModelsByMake(mapping)
+        setMakers(catMakers.slice().sort())
+        setMake((catMakers[0]) || make)
+        setModel((mapping[catMakers[0]]||[])[0] || model)
+        setCatalogLoaded(true)
+      }catch(_err){
+        // leave the local mapping in place silently
+        setCatalogLoaded(false)
+      }
+    }
+    fetchCatalog()
+    return ()=>{ mounted = false }
+  }, [])
+
   return (
     <form onSubmit={submit} className="bg-white p-4 rounded shadow">
       <div className="flex gap-2 items-center">
         <select value={make} onChange={e=>onMakeChange(e.target.value)} className="border p-2 rounded w-48 bg-slate-900 text-slate-100">
-          {DEFAULT_MAKES.map(m=> <option key={m} value={m}>{m}</option>)}
+          {makers.map(m=> <option key={m} value={m}>{m}</option>)}
         </select>
 
         <select value={model} onChange={e=>setModel(e.target.value)} className="border p-2 rounded flex-1 bg-slate-900 text-slate-100">
-          {((MODELS_BY_MAKE[make]||[]).slice().sort()).map(m=> <option key={m} value={m}>{m}</option>)}
+          {((modelsByMake[make]||[]).slice().sort()).map(m=> <option key={m} value={m}>{m}</option>)}
         </select>
 
         <select value={year} onChange={e=>setYear(e.target.value)} className="border p-2 rounded w-28">
@@ -87,7 +101,7 @@ export default function SearchBar({ onResult }){
 
   <button className="bg-gradient-to-r from-pink-600 to-indigo-500 text-white px-4 rounded shadow-lg" disabled={loading}>{loading? '...' : 'Search'}</button>
       </div>
-      {result && <pre className="mt-3 text-sm">{JSON.stringify(result,null,2)}</pre>}
+  {/* Result is shown in the separate ResultCard component; no raw JSON blob here */}
     </form>
   )
 }
