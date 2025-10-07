@@ -7,6 +7,8 @@ from typing import List
 import joblib
 import os
 from fastapi.middleware.cors import CORSMiddleware
+import numpy as np
+import pandas as pd
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -111,9 +113,35 @@ def predict(make: str, model_name: str, year: int, mileage: int = 0):
     # Use cached models when available to reduce latency.
     try:
         if _clf is not None and _reg is not None:
-            X = [[2025 - year, mileage]]
-            risk = _clf.predict(X)[0]
-            est_cost = float(_reg.predict(X)[0])
+            # Attempt to construct input matching the trained model.
+            # If the model has feature names, create a DataFrame and populate likely columns.
+            if hasattr(_clf, "feature_names_in_"):
+                cols = list(_clf.feature_names_in_)
+                row = {c: 0 for c in cols}
+                for c in cols:
+                    lc = c.lower()
+                    if "mile" in lc:
+                        row[c] = mileage
+                    elif "age" in lc or "vehicle_age" in lc:
+                        row[c] = 2025 - year
+                    elif lc == "year" or ("year" in lc and "age" not in lc):
+                        row[c] = year
+                    elif "make" in lc:
+                        row[c] = make
+                    elif "model" in lc:
+                        row[c] = model_name
+                X_df = pd.DataFrame([row], columns=cols)
+                risk = _clf.predict(X_df)[0]
+                est_cost = float(_reg.predict(X_df)[0])
+            else:
+                # Fall back to using n_features_in_ if available, padding zeros for missing features.
+                n = getattr(_clf, "n_features_in_", None) or getattr(_clf, "n_features_in", None) or 2
+                X = np.zeros((1, int(n)))
+                X[0, 0] = 2025 - year
+                if int(n) > 1:
+                    X[0, 1] = mileage
+                risk = _clf.predict(X)[0]
+                est_cost = float(_reg.predict(X)[0])
             return ForecastOut(predicted_issue=str(risk), likelihood=0.5, estimated_cost=est_cost, range_months=6)
         else:
             logger.info("Models not loaded; returning placeholder prediction")
@@ -121,3 +149,21 @@ def predict(make: str, model_name: str, year: int, mileage: int = 0):
     except Exception as e:
         logger.exception("Prediction failed: %s", e)
         raise HTTPException(status_code=500, detail="Prediction error")
+
+
+@app.get("/health", response_model=dict)
+def health():
+    """Lightweight health endpoint showing CORS and model status."""
+    clf_features = None
+    try:
+        if _clf is not None and hasattr(_clf, "feature_names_in_"):
+            clf_features = list(_clf.feature_names_in_)
+    except Exception:
+        clf_features = None
+    return {
+        "ok": True,
+        "allowed_origins": allowed_origins,
+        "models_loaded": _clf is not None and _reg is not None,
+        "clf_n_features": getattr(_clf, "n_features_in_", None),
+        "clf_feature_names": clf_features,
+    }
