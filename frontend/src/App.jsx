@@ -1,4 +1,3 @@
-import React from 'react'
 import React, { useState } from 'react'
 import SearchBar from './components/SearchBar'
 import ResultCard from './components/ResultCard'
