@@ -9,8 +9,6 @@ import os
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Request
 import re
-import numpy as np
-import pandas as pd
 import json
 
 models.Base.metadata.create_all(bind=engine)
@@ -165,6 +163,12 @@ def predict(make: str, model_name: str, year: int, mileage: int = 0):
             # Attempt to construct input matching the trained model.
             # If the model has feature names, create a DataFrame and populate likely columns.
             if hasattr(_clf, "feature_names_in_"):
+                # Lazy import pandas only when needed; if missing, fall back to placeholder
+                try:
+                    import pandas as pd
+                except Exception:
+                    logger.warning("pandas not available in environment; returning placeholder prediction")
+                    return ForecastOut(predicted_issue=str(_clf.predict([[2025 - year]])[0]) if hasattr(_clf, 'predict') else "unknown", likelihood=0.5, estimated_cost=0.0, range_months=6)
                 cols = list(_clf.feature_names_in_)
                 row = {c: 0 for c in cols}
                 for c in cols:
@@ -184,6 +188,11 @@ def predict(make: str, model_name: str, year: int, mileage: int = 0):
                 est_cost = float(_reg.predict(X_df)[0])
             else:
                 # Fall back to using n_features_in_ if available, padding zeros for missing features.
+                try:
+                    import numpy as np
+                except Exception:
+                    logger.warning("numpy not available in environment; returning placeholder prediction")
+                    return ForecastOut(predicted_issue="unknown", likelihood=0.1, estimated_cost=0.0, range_months=6)
                 n = getattr(_clf, "n_features_in_", None) or getattr(_clf, "n_features_in", None) or 2
                 X = np.zeros((1, int(n)))
                 X[0, 0] = 2025 - year
