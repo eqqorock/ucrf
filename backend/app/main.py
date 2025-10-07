@@ -7,6 +7,8 @@ from typing import List
 import joblib
 import os
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Request
+import re
 import numpy as np
 import pandas as pd
 
@@ -44,6 +46,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Fallback middleware: ensure CORS headers are present on responses when origin matches.
+# This is a safety net for preview domains and errors that may bypass the built-in CORS middleware.
+# Keep this permissive only for development; remove or tighten for production.
+_allow_origin_regex_compiled = None
+if allow_origin_regex:
+    try:
+        _allow_origin_regex_compiled = re.compile(allow_origin_regex)
+    except Exception:
+        _allow_origin_regex_compiled = None
+
+
+@app.middleware("http")
+async def ensure_cors_headers(request: Request, call_next):
+    origin = request.headers.get("origin")
+    response = await call_next(request)
+    try:
+        matched = False
+        if origin:
+            if origin in allowed_origins:
+                matched = True
+            elif _allow_origin_regex_compiled and _allow_origin_regex_compiled.match(origin):
+                matched = True
+        if matched:
+            # Mirror back the request origin (safer than using *)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+            if allow_credentials:
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+            # Allow common headers/methods for preflighted requests
+            response.headers.setdefault("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+            response.headers.setdefault("Access-Control-Allow-Headers", "*")
+    except Exception:
+        # Don't let header injection break the response
+        pass
+    return response
 
 # Logging and model caching: load models once at startup to avoid joblib.load on every request.
 import logging
