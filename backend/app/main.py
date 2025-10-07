@@ -13,10 +13,23 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="UCRF - Vehicle Reliability Forecast")
 
 # CORS: allow Vercel frontend origin (replace with your actual Vercel domain or use ['*'] for testing)
+# Configure CORS origins via environment variable. Accept a single origin or a comma-separated list.
+raw_origins = os.environ.get("VITE_ALLOWED_ORIGINS") or os.environ.get("VITE_APP_ORIGIN")
+if raw_origins:
+    allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+else:
+    # default to the frontend production domain; change this in Render env if your Vercel domain differs
+    allowed_origins = ["https://ucrf.vercel.app"]
+
+# If allowed_origins contains the wildcard, disable credentials (browsers reject wildcard + credentials).
+allow_credentials = True
+if "*" in allowed_origins:
+    allow_credentials = False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("VITE_APP_ORIGIN") or "https://ucrf-7pxrceacn-eqqorocks-projects.vercel.app"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
