@@ -218,19 +218,19 @@ def health():
     }
 
 
-    @app.get("/problem-catalog", response_model=dict)
-    def problem_catalog():
-        """Return the problem catalog JSON file. This keeps the frontend in sync with the backend's taxonomy.
+@app.get("/problem-catalog", response_model=dict)
+def problem_catalog():
+    """Return the problem catalog JSON file. This keeps the frontend in sync with the backend's taxonomy.
 
-        Falls back to a simple structure if the file cannot be read.
+    Falls back to a simple structure if the file cannot be read.
 
-        """
-        data_path = os.path.join(os.path.dirname(__file__), "..", "data", "problem_catalog.json")
-        try:
-            with open(data_path, "r", encoding="utf-8") as fh:
-                return json.load(fh)
-        except FileNotFoundError:
-            raise HTTPException(status_code=404, detail="Problem catalog not found")
-        except Exception as e:
-            logger.exception("Failed to read problem catalog: %s", e)
-            raise HTTPException(status_code=500, detail="Failed to load catalog")
+    """
+    data_path = os.path.join(os.path.dirname(__file__), "..", "data", "problem_catalog.json")
+    try:
+        with open(data_path, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Problem catalog not found")
+    except Exception as e:
+        logger.exception("Failed to read problem catalog: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to load catalog")
