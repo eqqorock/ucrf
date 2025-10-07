@@ -34,6 +34,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Logging and model caching: load models once at startup to avoid joblib.load on every request.
+import logging
+logger = logging.getLogger("ucrf")
+logging.basicConfig(level=logging.INFO)
+
+MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
+CLF_PATH = os.path.join(MODEL_DIR, "reliability_clf.joblib")
+REG_PATH = os.path.join(MODEL_DIR, "cost_reg.joblib")
+
+_clf = None
+_reg = None
+
+def try_load_models():
+    global _clf, _reg
+    try:
+        if os.path.exists(CLF_PATH) and os.path.exists(REG_PATH):
+            _clf = joblib.load(CLF_PATH)
+            _reg = joblib.load(REG_PATH)
+            logger.info(f"Loaded models from {MODEL_DIR}")
+        else:
+            logger.info(f"Model files not found in {MODEL_DIR}")
+    except Exception as e:
+        logger.exception("Failed to load models: %s", e)
+
+# Run at import/startup
+logger.info(f"Allowed CORS origins: {allowed_origins}, allow_credentials={allow_credentials}")
+try_load_models()
+
 
 class VehicleCreate(BaseModel):
     make: str
@@ -80,16 +108,16 @@ def get_service_history(vehicle_id: int | None = None, db: Session = Depends(get
 
 @app.post("/predict", response_model=ForecastOut)
 def predict(make: str, model_name: str, year: int, mileage: int = 0):
-    # simple fallback predictor: if model exists in /models, load and predict
-    model_path = os.path.join(os.path.dirname(__file__), "..", "models", "reliability_clf.joblib")
-    cost_model_path = os.path.join(os.path.dirname(__file__), "..", "models", "cost_reg.joblib")
-    # placeholder behavior
-    if os.path.exists(model_path) and os.path.exists(cost_model_path):
-        clf = joblib.load(model_path)
-        reg = joblib.load(cost_model_path)
-        # create a minimal feature vector (this code assumes trained model expects these columns)
-        X = [[2025 - year, mileage]]
-        risk = clf.predict(X)[0]
-        est_cost = float(reg.predict(X)[0])
-        return ForecastOut(predicted_issue=str(risk), likelihood=0.5, estimated_cost=est_cost, range_months=6)
-    return ForecastOut(predicted_issue="unknown", likelihood=0.1, estimated_cost=0.0, range_months=6)
+    # Use cached models when available to reduce latency.
+    try:
+        if _clf is not None and _reg is not None:
+            X = [[2025 - year, mileage]]
+            risk = _clf.predict(X)[0]
+            est_cost = float(_reg.predict(X)[0])
+            return ForecastOut(predicted_issue=str(risk), likelihood=0.5, estimated_cost=est_cost, range_months=6)
+        else:
+            logger.info("Models not loaded; returning placeholder prediction")
+            return ForecastOut(predicted_issue="unknown", likelihood=0.1, estimated_cost=0.0, range_months=6)
+    except Exception as e:
+        logger.exception("Prediction failed: %s", e)
+        raise HTTPException(status_code=500, detail="Prediction error")
