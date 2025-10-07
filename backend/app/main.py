@@ -28,9 +28,18 @@ allow_credentials = True
 if "*" in allowed_origins:
     allow_credentials = False
 
+# Allow preview Vercel subdomains by default during development. Override with VITE_ALLOW_ORIGIN_REGEX in Render env if needed.
+raw_allow_origin_regex = os.environ.get("VITE_ALLOW_ORIGIN_REGEX")
+if raw_allow_origin_regex is None:
+    # permissive default for vercel preview domains (dev only)
+    allow_origin_regex = r"https://.*\.vercel\.app"
+else:
+    allow_origin_regex = raw_allow_origin_regex or None
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
