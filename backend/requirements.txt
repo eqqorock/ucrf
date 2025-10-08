@@ -3,4 +3,7 @@ uvicorn[standard]==0.22.0
 sqlalchemy==2.0.19
 pydantic==1.10.12
 joblib==1.3.2
-numpy==1.27.4
+# Use a numpy build that has wheels for Python 3.13 on PyPI / Render
+# 1.27.4 was not available for the selected Python runtime; 2.3.3 is known
+# to be available. Pin to that to avoid build errors on Render.
+numpy==2.3.3
