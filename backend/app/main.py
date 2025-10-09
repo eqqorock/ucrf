@@ -130,7 +130,7 @@ class ForecastOut(BaseModel):
 
 @app.post("/vehicles", response_model=dict)
 def create_vehicle(payload: VehicleCreate, db: Session = Depends(get_db)):
-    v = models.Vehicle(**payload.dict())
+    v = models.Vehicle(**payload.model_dump())
     db.add(v)
     db.commit()
     db.refresh(v)
