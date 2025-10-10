@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from . import models
 from .database import engine, get_db
@@ -13,7 +14,8 @@ import json
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="UCRF - Vehicle Reliability Forecast")
+# Keep the existing API app separate so we can mount it under /api below.
+api_app = FastAPI(title="UCRF - Vehicle Reliability Forecast (api)")
 
 # CORS: allow Vercel frontend origin (replace with your actual Vercel domain or use ['*'] for testing)
 # Configure CORS origins via environment variable. Accept a single origin or a comma-separated list.
@@ -58,7 +60,7 @@ if allow_origin_regex:
         _allow_origin_regex_compiled = None
 
 
-@app.middleware("http")
+@api_app.middleware("http")
 async def ensure_cors_headers(request: Request, call_next):
     origin = request.headers.get("origin")
     response = await call_next(request)
@@ -128,7 +130,7 @@ class ForecastOut(BaseModel):
     range_months: int
 
 
-@app.post("/vehicles", response_model=dict)
+@api_app.post("/vehicles", response_model=dict)
 def create_vehicle(payload: VehicleCreate, db: Session = Depends(get_db)):
     v = models.Vehicle(**payload.model_dump())
     db.add(v)
@@ -137,13 +139,13 @@ def create_vehicle(payload: VehicleCreate, db: Session = Depends(get_db)):
     return {"id": v.id}
 
 
-@app.get("/vehicles", response_model=List[dict])
+@api_app.get("/vehicles", response_model=List[dict])
 def list_vehicles(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
     vs = db.query(models.Vehicle).offset(skip).limit(limit).all()
     return [{"id": v.id, "make": v.make, "model": v.model, "year": v.year} for v in vs]
 
 
-@app.get("/service-history", response_model=List[dict])
+@api_app.get("/service-history", response_model=List[dict])
 def get_service_history(vehicle_id: int | None = None, db: Session = Depends(get_db)):
     q = db.query(models.ServiceHistory)
     if vehicle_id:
@@ -155,7 +157,7 @@ def get_service_history(vehicle_id: int | None = None, db: Session = Depends(get
     ]
 
 
-@app.post("/predict", response_model=ForecastOut)
+@api_app.post("/predict", response_model=ForecastOut)
 def predict(make: str, model_name: str, year: int, mileage: int = 0):
     # Use cached models when available to reduce latency.
     try:
@@ -209,7 +211,7 @@ def predict(make: str, model_name: str, year: int, mileage: int = 0):
         raise HTTPException(status_code=500, detail="Prediction error")
 
 
-@app.get("/health", response_model=dict)
+@api_app.get("/health", response_model=dict)
 def health():
     """Lightweight health endpoint showing CORS and model status."""
     clf_features = None
@@ -227,7 +229,7 @@ def health():
     }
 
 
-@app.get("/problem-catalog", response_model=dict)
+@api_app.get("/problem-catalog", response_model=dict)
 def problem_catalog():
     """Return the problem catalog JSON file. This keeps the frontend in sync with the backend's taxonomy.
 
@@ -243,3 +245,18 @@ def problem_catalog():
     except Exception as e:
         logger.exception("Failed to read problem catalog: %s", e)
         raise HTTPException(status_code=500, detail="Failed to load catalog")
+
+
+# Root app: mount API under /api and serve frontend static files from the built frontend
+app = FastAPI(title="UCRF - Root")
+
+# Mount the API under /api
+app.mount("/api", api_app)
+
+# Serve static frontend files (built by Vite into frontend_dist)
+app.mount("/", StaticFiles(directory="../frontend_dist", html=True), name="frontend")
+
+# SPA fallback for client-side routing: let the static files handler serve index.html
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    return app.get_mount("/").lookup_path("index.html")[0]
