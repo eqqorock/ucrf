@@ -1,0 +1,19 @@
+{
+  "generated_at": "2025-10-07T00:00:00Z",
+  "problems": ["engine_oil_leak", "brake_pad_wear"],
+  "makers": ["Honda", "Toyota", "Ford", "BMW", "Hyundai", "Volkswagen"],
+  "rows": [
+    {"maker": "Honda", "problem": "engine_oil_leak", "annual_probability": 0.058},
+    {"maker": "Honda", "problem": "brake_pad_wear", "annual_probability": 0.234},
+    {"maker": "Toyota", "problem": "engine_oil_leak", "annual_probability": 0.057},
+    {"maker": "Toyota", "problem": "brake_pad_wear", "annual_probability": 0.235},
+    {"maker": "Ford", "problem": "engine_oil_leak", "annual_probability": 0.066},
+    {"maker": "Ford", "problem": "brake_pad_wear", "annual_probability": 0.248},
+    {"maker": "BMW", "problem": "engine_oil_leak", "annual_probability": 0.06},
+    {"maker": "BMW", "problem": "brake_pad_wear", "annual_probability": 0.237},
+    {"maker": "Hyundai", "problem": "engine_oil_leak", "annual_probability": 0.055},
+    {"maker": "Hyundai", "problem": "brake_pad_wear", "annual_probability": 0.229},
+    {"maker": "Volkswagen", "problem": "engine_oil_leak", "annual_probability": 0.061},
+    {"maker": "Volkswagen", "problem": "brake_pad_wear", "annual_probability": 0.235}
+  ]
+}
