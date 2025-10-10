@@ -2,9 +2,11 @@ import React, {useState, useMemo, useEffect} from 'react'
 import axios from 'axios'
 
 // read Vite env var (Vite inlines VITE_ variables at build time)
-let API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Use VITE_API_URL when provided at build time; otherwise default to '' so
+// requests go to the same origin. We'll prefix API paths with /api in calls.
+let API = import.meta.env.VITE_API_URL || ''
 // normalize (remove trailing slash)
-if (API.endsWith('/')) API = API.slice(0, -1)
+if (API && API.endsWith('/')) API = API.slice(0, -1)
 
 // Small local fallback mapping used if the backend catalog cannot be reached.
 const LOCAL_MODELS_BY_MAKE = {
@@ -45,7 +47,7 @@ export default function SearchBar({ onResult }){
     e.preventDefault()
     setLoading(true)
     try{
-      const res = await axios.post(`${API}/predict`, null, { params: { make, model_name: model, year: Number(year), mileage: 0 } })
+  const res = await axios.post(`${API}/api/predict`, null, { params: { make, model_name: model, year: Number(year), mileage: 0 } })
       setResult(res.data)
       if (onResult) onResult(res.data)
     }catch(err){
@@ -60,7 +62,7 @@ export default function SearchBar({ onResult }){
     let mounted = true
     const fetchCatalog = async ()=>{
       try{
-        const res = await axios.get(`${API}/problem-catalog`)
+  const res = await axios.get(`${API}/api/problem-catalog`)
         if (!mounted) return
         const data = res.data || {}
         // Build a simple mapping: makers -> small model lists (fallback to local models if not available)
